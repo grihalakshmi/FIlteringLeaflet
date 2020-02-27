@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Leaflet UBC by Grihalakshmi</title>
+	<!--External Stylesets, using a hosted version of leftlet with subresource integrity enabled. See https://leafletjs.com/download.html -->
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+  integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+  crossorigin=""/>	
+
+	<!-- Adding the Leaflet JavaScript Library -->
+	<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+  integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+  crossorigin=""></script>
+
+  <!-- adding the JQuery-->
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+
+</head>
+<body>
+
+	<div id="map" style="width: 600px; height: 400px"></div>
+
+  <div id="controls" style="margin: 15px;">
+    <button id="showAllParkingLotsButton">Show All Parking Lots</button>
+  
+    <span style="display:inline-block; width: 30px"></span>
+    <input type="text" id="highlightParkingLotsTextEntry" placeholder="Parking Lot">
+    <button id="highlightParkingLotsButton">Highlight</button>
+
+  </div>
+
+<script> 
+	// Create variable to hold map element, give initial settings to map
+	var map = L.map('map',{ center: [49.262109, -123.243029], zoom: 14}); 
+
+	// Add OpenStreetMap tile layer to map element
+	L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png', { attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+
+/* $.getJSON("https://raw.githubusercontent.com/UBCGeodata/ubcv-buildings/master/geojson/ubcv_buildings.geojson",function(data){
+    L.geoJson(data, {
+    	onEachFeature: function (feature, layer) {
+    		layer.bindPopup(feature.properties.PLACENAME);
+    	}
+    }).addTo(map);
+}); */
+
+
+var ParkingLotMarker = {
+    	radius: 6,
+    	fillColor: "#904010",
+    	color: "#555453",
+    	weight: 2,
+    	opacity: 1,
+    	fillOpacity: 1
+		};
+
+var ParkingLotMarkerHighlighted = {
+      radius: 6,
+      fillColor: "#5dd6f5", // Make highlighted trees orange.
+      color: "#000",
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 1
+    };
+    
+function onEachLot(feature, layer) {
+        layer.bindPopup(feature.properties.FAC_DESCRIPTION);
+       }
+
+
+function parkinglotPointToLayer(feature, latlng) {
+
+      // the next conditional lets us differentiate between the
+      // styling we use when we are highlighting a particular taxa
+      // of trees versus when we are displaying all trees.
+
+      if (parkinglotToHighlight === "") {
+        parkinglotMarkerToUse = ParkingLotMarker;
+      } else {
+        parkinglotMarkerToUse = ParkingLotMarkerHighlighted;
+      }
+
+      // for the current feature, make a circleMarker.
+      return L.circleMarker(
+        latlng,
+        parkinglotMarkerToUse
+      );
+    }
+
+function parkinglotsToFilter(feature, layer) {
+      if (parkinglotToHighlight === "") {
+        return true;
+        // In this case, we're not highlighting anything, so draw everything.
+      } else if (feature.properties && feature.properties.FAC_DESCRIPTION) {
+        // We just checked to make sure there are properties to avoid an error
+        //   by asking for the .TAXA when there are no properties.
+        // Now, we need to check to see if the .TAXA *includes* the search string we're
+        //   trying to highlight.
+        return feature.properties.FAC_DESCRIPTION.toLowerCase().includes( parkinglotToHighlight.toLowerCase());
+        // We ignore uppercase/lowercase differences.
+      } else {
+        return false;
+        // This is for features that lack properties.
+        // Don't display them.
+      }
+    }
+
+var lastLayerAdded = {};
+    // Keeping track of lastLayerAdded lets us reset the map layers
+    // being shown so we don’t keep on layering new data on old.
+
+function addLots() {
+      if (map.hasLayer(lastLayerAdded)) { // reset the map layers if relevant.
+        map.removeLayer(lastLayerAdded);
+      }
+      lastLayerAdded = L.geoJSON(lotsGeoJSONdata, {
+        pointToLayer: parkinglotPointToLayer,
+        onEachFeature: onEachLot,
+        filter: parkinglotsToFilter
+      });
+
+    lastLayerAdded.addTo(map);
+
+  };
+
+var parkinglotToHighlight = "";
+    // This is set by someone pressing the highlight button.
+    // If it's an empty string, then just draw everything.
+
+    function highlightParkingLots() {
+      parkinglotToHighlight = document
+        .getElementById("highlightParkingLotsTextEntry")
+        .value; // get any text from the input box.   
+      addLots(); // add the trees.
+      parkinglotToHighlight = ""; // reset so that "Show All Trees" works.
+    }; 
+
+
+ var lotsGeoJSONdata; 
+
+$.getJSON("https://raw.githubusercontent.com/UBCGeodata/ubcv-parking/master/geojson/ubcv_parking_www.geojson",
+              function(data){
+                // store data for later:
+                lotsGeoJSONdata = data;
+                // create event listener for showAllParkingLotsButton:
+                document 
+                  .getElementById("showAllParkingLotsButton")
+                  .addEventListener("click", addLots);
+
+                // Create event listener for the highlightParkingLots Button:
+                document
+                  .getElementById("highlightParkingLotsButton")
+                  .addEventListener("click", highlightParkingLots);
+
+    					/*	L.geoJSON(data, {
+   								  pointToLayer: function (feature, latlng) {
+        							               return L.circleMarker(
+                                       latlng,
+                                       ParkingLotMarker
+                                     );
+    							                },
+                    onEachFeature: onEachLot
+                  }
+                ).addTo(map); */
+    		});
+
+/* function addLots() {
+      if (map.hasLayer(lastLayerAdded)) { // reset the map layers if relevant.
+        map.removeLayer(lastLayerAdded);
+      }
+      lastLayerAdded = L.geoJSON(lotsGeoJSONdata, {
+        pointToLayer: function (feature, latlng) {
+                                     return L.circleMarker(
+                                       latlng,
+                                       ParkingLotMarker
+                                     );
+                                  },
+        onEachFeature: onEachLot,
+        filter: parkinglotsToFilter
+      });
+
+    lastLayerAdded.addTo(map);
+
+  }; */
+
+</script>
+
+</body>
+</html>
